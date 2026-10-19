@@ -1,0 +1,26 @@
+
+.env
+.env.*
+!.env.example
+
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+
+*.log
+*.sql
+*.dump
+*.bak
+# Local testing and utility scripts
+check_constraint.py
+check_test_db.py
+cleanup_test_data.py
+cleanup_whatsapp_test.py
+list_databases.py
+preview_test.py
+send_gym_template_test.py
+test_member_preview.py
+test_whatsapp_integration.py

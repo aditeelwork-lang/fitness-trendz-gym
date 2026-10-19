@@ -1,0 +1,557 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fitness Trendz | Gym Management</title>
+<style>
+:root {
+  --yellow: #E7C95A;
+  --navy: #243B53;
+  --turquoise: #70BFB2;
+  --bg: #F5F5F0;
+  --white: #FFFFFF;
+  --text: #303943;
+  --muted: #657382;
+  --border: #DFE4E0;
+  --danger: #A94442;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; font-family: "Segoe UI", Arial, sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.5;
+}
+button, input, select { font: inherit; }
+button { cursor: pointer; }
+.layout { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 245px; flex-shrink: 0; background: var(--navy);
+  color: white; padding: 25px 16px;
+}
+.brand { padding: 0 12px 28px; border-bottom: 1px solid #52677A; }
+.brand h2 { margin: 0; font-size: 21px; letter-spacing: .5px; }
+.brand span { color: var(--turquoise); font-size: 12px; letter-spacing: 2px; }
+.nav { display: grid; gap: 8px; margin-top: 25px; }
+.nav button {
+  text-align: left; padding: 12px 14px; border: 0; border-radius: 9px;
+  color: white; background: transparent;
+}
+.nav button:hover, .nav button.active { background: #3B5268; }
+.nav button.active { box-shadow: inset 4px 0 var(--yellow); }
+.main { min-width: 0; flex: 1; padding: 30px; }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 26px; }
+h1 { font-size: 27px; margin: 0; color: var(--navy); }
+.subtitle { color: var(--muted); margin-top: 5px; font-size: 14px; }
+.api-status { font-size: 13px; color: var(--muted); }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #C9A74B; margin-right: 6px; }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.stat, .panel {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 14px; padding: 20px;
+}
+.stat { border-top: 4px solid var(--turquoise); }
+.stat:nth-child(2) { border-top-color: var(--yellow); }
+.stat:nth-child(3) { border-top-color: var(--navy); }
+.stat-label { color: var(--muted); font-size: 14px; }
+.stat-value { color: var(--navy); font-size: 29px; font-weight: 700; margin-top: 7px; }
+.panel { margin-top: 20px; }
+.panel h2 { color: var(--navy); font-size: 19px; margin: 0 0 16px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn {
+  border: 0; border-radius: 8px; padding: 10px 15px;
+  background: var(--navy); color: white; font-weight: 600;
+}
+.btn:hover { filter: brightness(.94); }
+.btn-yellow { background: var(--yellow); color: #303943; }
+.btn-turquoise { background: var(--turquoise); color: #183B3B; }
+.btn-light { background: #EDF1EE; color: var(--navy); }
+.btn-danger { background: var(--danger); color: white; }
+.page { display: none; }
+.page.active { display: block; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 13px; color: var(--muted); font-weight: 600; }
+.field input, .field select {
+  width: 100%; padding: 11px 12px; border: 1px solid #CCD5D2;
+  border-radius: 8px; background: #FCFCFA; color: var(--text);
+}
+.field input:focus, .field select:focus {
+  outline: 2px solid var(--turquoise); outline-offset: 1px;
+}
+.full { grid-column: 1 / -1; }
+.help { color: var(--muted); font-size: 12px; }
+.notice { background: #F7F1D9; padding: 12px; border-radius: 8px; font-size: 13px; }
+.result { margin-top: 15px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
+.toolbar input { flex: 1; min-width: 180px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 12px 10px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+th { color: var(--navy); background: #F1F3EF; }
+.pill { display: inline-block; border-radius: 20px; padding: 3px 9px; background: #DFF1EC; color: #24594F; font-size: 12px; }
+.pill.off { background: #F5E4E2; color: #873F3D; }
+.message { margin: 14px 0; padding: 12px; border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.message.error { background: #F5E4E2; color: #873F3D; }
+.message.ok { background: #DFF1EC; color: #24594F; }
+.empty { color: var(--muted); padding: 20px 0; }
+.mobile-menu { display: none; }
+@media(max-width: 850px) {
+  .sidebar { width: 190px; }
+  .main { padding: 20px; }
+  .grid { grid-template-columns: 1fr; }
+}
+@media(max-width: 600px) {
+  .layout { display: block; }
+  .sidebar { width: 100%; padding: 14px; }
+  .brand { padding-bottom: 12px; }
+  .nav { grid-template-columns: repeat(2, minmax(0,1fr)); margin-top: 12px; }
+  .nav button { padding: 10px; font-size: 13px; }
+  .main { padding: 16px; }
+  .form-grid { grid-template-columns: 1fr; }
+  .full { grid-column: auto; }
+  .topbar { align-items: flex-start; flex-direction: column; }
+  h1 { font-size: 23px; }
+}
+
+.brand-logo {
+  display: block;
+  width: 90px;
+  height: 90px;
+  object-fit: contain;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 12px;
+}
+
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+
+<div class="brand">
+  <img
+    src="assets/fitness-trendz-logo.jpg"
+    alt="Fitness Trendz Gym logo"
+    class="brand-logo"
+  >
+  <span>GYM MANAGEMENT</span>
+</div>
+
+    <nav class="nav">
+      <button class="active" data-page="dashboard">▦ Dashboard</button>
+      <button data-page="members">♙ Members</button>
+      <button data-page="add-member">＋ Add member</button>
+      <button data-page="renewal">↻ Renewal / Payment</button>
+      <button data-page="history">▤ Payment history</button>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <h1 id="page-title">Dashboard</h1>
+        <div class="subtitle">A simpler way to manage your gym.</div>
+      </div>
+      <div class="api-status"><span class="dot" id="api-dot"></span><span id="api-status">Checking API connection…</span></div>
+    </header>
+
+    <div id="global-message" aria-live="polite"></div>
+
+    <section class="page active" id="page-dashboard">
+      <div class="grid">
+        <div class="stat"><div class="stat-label">Total members</div><div class="stat-value" id="total-members">—</div></div>
+        <div class="stat"><div class="stat-label">Active members</div><div class="stat-value" id="active-members">—</div></div>
+        <div class="stat"><div class="stat-label">Recorded payments</div><div class="stat-value" id="total-payments">—</div></div>
+      </div>
+      <div class="panel">
+        <h2>Quick actions</h2>
+        <div class="actions">
+          <button class="btn btn-yellow" data-go="add-member">＋ Register member</button>
+          <button class="btn btn-turquoise" data-go="renewal">Record payment / renewal</button>
+          <button class="btn" data-go="members">View members</button>
+          <button class="btn btn-light" data-go="history">Payment history</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Getting started</h2>
+        <p>Enter the member's details, select any duration from 1 to 24 months, and enter the actual amount received. The amount is not tied to a fixed package price.</p>
+        <div class="notice">WhatsApp messaging is not enabled in this dashboard. Payments are recorded only when you explicitly submit a payment form.</div>
+      </div>
+    </section>
+
+    <section class="page" id="page-add-member">
+      <div class="panel">
+        <h2>Register a new member</h2>
+        <form id="member-form" class="form-grid">
+          <div class="field"><label for="m-code">Member ID *</label><input id="m-code" required maxlength="30" placeholder="e.g. FTZ002"></div>
+          <div class="field"><label for="m-name">Full name *</label><input id="m-name" required maxlength="120"></div>
+          <div class="field"><label for="m-phone">Phone number *</label><input id="m-phone" required maxlength="20" placeholder="Include country code if needed"></div>
+          <div class="field"><label for="m-duration">Membership duration (months) *</label><input id="m-duration" type="number" min="1" max="24" value="1" required></div>
+          <div class="field"><label for="m-amount">Amount received (₹) *</label><input id="m-amount" type="number" min="0.01" step="0.01" required placeholder="Enter actual amount"></div>
+          <div class="field"><label for="m-start">Joining date *</label><input id="m-start" type="date" required></div>
+          <div class="field"><label for="m-expiry">Membership expiry date</label><input id="m-expiry" type="date" readonly><span class="help">Calculated as the day before the same calendar date after the selected number of months.</span></div>
+          <div class="field"><label for="m-reminder">Reminder permission</label><select id="m-reminder"><option value="false">No — not opted in</option><option value="true">Yes — opted in</option></select></div>
+          <div class="full actions"><button class="btn btn-yellow" type="submit">Register member</button><button class="btn btn-light" type="reset">Clear form</button></div>
+        </form>
+        <div id="member-result" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section class="page" id="page-members">
+      <div class="panel">
+        <h2>Member directory</h2>
+        <div class="toolbar">
+          <input id="member-search" placeholder="Search name, member ID, or phone…">
+          <button class="btn btn-turquoise" id="refresh-members">Refresh members</button>
+        </div>
+        <div class="table-wrap">
+          <table><thead><tr><th>Member ID</th><th>Name</th><th>Phone</th><th>Duration</th><th>Amount field</th><th>Expiry</th><th>Status</th><th>History</th></tr></thead><tbody id="member-table"></tbody></table>
+        </div>
+        <div id="members-empty" class="empty">Load members to see the directory.</div>
+      </div>
+    </section>
+
+    <section class="page" id="page-renewal">
+      <div class="panel">
+        <h2>Record payment or renewal</h2>
+        <p class="help">Renewals start the day after the member's current expiry date. This form can change the duration every time.</p>
+        <form id="payment-form" class="form-grid">
+          <div class="field full"><label for="p-member">Member *</label><select id="p-member" required><option value="">Load members first…</option></select></div>
+          <div class="field"><label for="p-duration">New duration (months) *</label><input id="p-duration" type="number" min="1" max="24" value="1" required></div>
+          <div class="field"><label for="p-amount">Actual amount received (₹) *</label><input id="p-amount" type="number" min="0.01" step="0.01" required placeholder="Enter discounted or offer price"></div>
+          <div class="field"><label for="p-start">Renewal start date *</label><input id="p-start" type="date" required></div>
+          <div class="field"><label for="p-end">Renewal expiry date</label><input id="p-end" type="date" readonly></div>
+          <div class="full notice">Please verify the member, amount, and dates before submitting. Submitting records a payment in the database.</div>
+          <div class="full actions"><button class="btn btn-yellow" type="submit">Confirm and record payment</button></div>
+        </form>
+        <div id="payment-result" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section class="page" id="page-history">
+      <div class="panel">
+        <h2>Payment history</h2>
+        <div class="toolbar">
+          <select id="history-member" aria-label="Choose member"><option value="">All members</option></select>
+          <button class="btn btn-turquoise" id="refresh-history">Load payment history</button>
+        </div>
+        <div class="table-wrap">
+          <table><thead><tr><th>Payment ID</th><th>Member ID</th><th>Paid at</th><th>Amount</th><th>Period start</th><th>Period end</th><th>Receipt</th></tr></thead><tbody id="payment-table"></tbody></table>
+        </div>
+        <div id="history-empty" class="empty">Load payment history to see records.</div>
+        <div id="receipt-view"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+const API = "http://127.0.0.1:8000";
+const $ = id => document.getElementById(id);
+let membersCache = [];
+let paymentsCache = [];
+
+function showMessage(target, text, type = "ok") {
+  $(target).innerHTML = "";
+  const div = document.createElement("div");
+  div.className = "message " + type;
+  div.textContent = text;
+  $(target).appendChild(div);
+}
+function clearMessage(target) { $(target).innerHTML = ""; }
+
+async function api(path, options = {}) {
+  const response = await fetch(API + path, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) }
+  });
+  const text = await response.text();
+  let data;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!response.ok) {
+    const detail = data && data.detail;
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail || data || response.statusText));
+  }
+  return data;
+}
+function formatDate(value) {
+  if (!value) return "—";
+  const parts = value.split("-");
+  return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : value;
+}
+function addMonths(dateString, months) {
+  if (!dateString || !months) return "";
+  const [y, m, d] = dateString.split("-").map(Number);
+  const first = new Date(Date.UTC(y, m - 1 + Number(months), 1));
+  const lastDay = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
+  const targetDay = Math.min(d, lastDay);
+  const result = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), targetDay));
+  result.setUTCDate(result.getUTCDate() - 1);
+  return `${result.getUTCFullYear()}-${String(result.getUTCMonth()+1).padStart(2,"0")}-${String(result.getUTCDate()).padStart(2,"0")}`;
+}
+function todayLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function money(value) {
+  return "₹" + Number(value || 0).toLocaleString("en-IN", {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function go(page) {
+  document.querySelectorAll(".page").forEach(el => el.classList.toggle("active", el.id === "page-" + page));
+  document.querySelectorAll(".nav button").forEach(el => el.classList.toggle("active", el.dataset.page === page));
+  const titles = {dashboard:"Dashboard",members:"Members", "add-member":"Register member",renewal:"Renewal / Payment",history:"Payment history"};
+  $("page-title").textContent = titles[page] || "Dashboard";
+  if (page === "members") loadMembers();
+  if (page === "renewal" || page === "history") loadMembers();
+}
+document.querySelectorAll("[data-page]").forEach(btn => btn.addEventListener("click", () => go(btn.dataset.page)));
+document.querySelectorAll("[data-go]").forEach(btn => btn.addEventListener("click", () => go(btn.dataset.go)));
+
+function updateMemberExpiry() {
+  $("m-expiry").value = addMonths($("m-start").value, Number($("m-duration").value));
+}
+function updatePaymentDates() {
+  $("p-end").value = addMonths($("p-start").value, Number($("p-duration").value));
+}
+$("m-start").value = todayLocal();
+$("m-start").addEventListener("change", updateMemberExpiry);
+$("m-duration").addEventListener("input", updateMemberExpiry);
+$("p-start").addEventListener("change", updatePaymentDates);
+$("p-duration").addEventListener("input", updatePaymentDates);
+updateMemberExpiry();
+
+async function checkApi() {
+  try {
+    await api("/health");
+    $("api-status").textContent = "API connected";
+    $("api-dot").style.background = "#70BFB2";
+  } catch {
+    $("api-status").textContent = "API not reachable";
+    $("api-dot").style.background = "#A94442";
+  }
+}
+
+async function loadMembers() {
+  try {
+    membersCache = await api("/members");
+    renderMembers();
+    fillMemberSelects();
+    $("total-members").textContent = membersCache.length;
+    $("active-members").textContent = membersCache.filter(m => m.is_active).length;
+  } catch (err) {
+    showMessage("global-message", "Could not load members: " + err.message + ". Keep your FastAPI server running.", "error");
+  }
+}
+function fillMemberSelects() {
+  const active = membersCache.filter(m => m.is_active);
+  const renewal = $("p-member");
+  const previous = renewal.value;
+  renewal.innerHTML = '<option value="">Choose a member…</option>';
+  active.forEach(m => {
+    const option = document.createElement("option");
+    option.value = m.member_code;
+    option.textContent = `${m.member_code} — ${m.full_name} (expires ${formatDate(m.membership_expiry)})`;
+    renewal.appendChild(option);
+  });
+  if (active.some(m => m.member_code === previous)) renewal.value = previous;
+
+  const history = $("history-member");
+  const old = history.value;
+  history.innerHTML = '<option value="">All members</option>';
+  membersCache.forEach(m => {
+    const option = document.createElement("option");
+    option.value = m.member_code;
+    option.textContent = `${m.member_code} — ${m.full_name}`;
+    history.appendChild(option);
+  });
+  history.value = old;
+}
+function renderMembers() {
+  const q = $("member-search").value.trim().toLowerCase();
+  const filtered = membersCache.filter(m =>
+    [m.member_code, m.full_name, m.phone].some(v => String(v || "").toLowerCase().includes(q))
+  );
+  const tbody = $("member-table");
+  tbody.innerHTML = "";
+  filtered.forEach(m => {
+    const tr = document.createElement("tr");
+    const vals = [
+      m.member_code, m.full_name, m.phone,
+      `${m.duration_months} month(s)`, money(m.monthly_fee),
+      formatDate(m.membership_expiry)
+    ];
+    vals.forEach(v => { const td = document.createElement("td"); td.textContent = v; tr.appendChild(td); });
+    const status = document.createElement("td");
+    status.innerHTML = m.is_active ? '<span class="pill">Active</span>' : '<span class="pill off">Inactive</span>';
+    tr.appendChild(status);
+    const action = document.createElement("td");
+    const btn = document.createElement("button");
+    btn.className = "btn btn-light";
+    btn.textContent = "View history";
+    btn.addEventListener("click", () => { $("history-member").value = m.member_code; go("history"); loadHistory(); });
+    action.appendChild(btn); tr.appendChild(action);
+    tbody.appendChild(tr);
+  });
+  $("members-empty").textContent = filtered.length ? "" : "No matching members found.";
+  $("members-empty").style.display = filtered.length ? "none" : "block";
+}
+$("member-search").addEventListener("input", renderMembers);
+$("refresh-members").addEventListener("click", loadMembers);
+
+$("member-form").addEventListener("reset", () => setTimeout(() => {
+  $("m-start").value = todayLocal(); updateMemberExpiry(); clearMessage("member-result");
+}, 0));
+$("member-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  clearMessage("member-result");
+  const start = $("m-start").value;
+  const duration = Number($("m-duration").value);
+  const expiry = addMonths(start, duration);
+  if (!start || !duration || duration < 1 || duration > 24) {
+    showMessage("member-result", "Enter a valid joining date and duration from 1 to 24 months.", "error"); return;
+  }
+  const payload = {
+    member_code: $("m-code").value.trim(),
+    full_name: $("m-name").value.trim(),
+    phone: $("m-phone").value.trim(),
+    plan_name: `${duration} month(s)`,
+    duration_months: duration,
+    monthly_fee: Number($("m-amount").value),
+    membership_start: start,
+    membership_expiry: expiry,
+    reminder_opt_in: $("m-reminder").value === "true"
+  };
+  if (!payload.member_code || !payload.full_name || !payload.phone || !Number.isFinite(payload.monthly_fee) || payload.monthly_fee <= 0) {
+    showMessage("member-result", "Please fill all required fields with a valid positive amount.", "error"); return;
+  }
+  if (!confirm(`Register ${payload.full_name}?\nDuration: ${duration} month(s)\nAmount: ${money(payload.monthly_fee)}\nPeriod: ${formatDate(start)} to ${formatDate(expiry)}\n\nContinue?`)) return;
+  try {
+    const member = await api("/members", {method:"POST", body:JSON.stringify(payload)});
+    showMessage("member-result", `Member ${member.member_code} registered successfully.\nExpiry: ${formatDate(member.membership_expiry)}\n\nNote: this form registers the member; it does not create a payment-history entry for the initial amount.`, "ok");
+    $("member-form").reset();
+    await loadMembers();
+  } catch (err) {
+    showMessage("member-result", "Could not register member: " + err.message, "error");
+  }
+});
+
+$("p-member").addEventListener("change", () => {
+  const m = membersCache.find(x => x.member_code === $("p-member").value);
+  if (!m) { $("p-start").value = ""; $("p-end").value = ""; return; }
+  const next = new Date(m.membership_expiry + "T00:00:00Z");
+  next.setUTCDate(next.getUTCDate() + 1);
+  $("p-start").value = `${next.getUTCFullYear()}-${String(next.getUTCMonth()+1).padStart(2,"0")}-${String(next.getUTCDate()).padStart(2,"0")}`;
+  updatePaymentDates();
+});
+$("payment-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  clearMessage("payment-result");
+  const code = $("p-member").value;
+  const m = membersCache.find(x => x.member_code === code);
+  const duration = Number($("p-duration").value);
+  const amount = Number($("p-amount").value);
+  const start = $("p-start").value;
+  const end = addMonths(start, duration);
+  if (!m || !m.is_active) { showMessage("payment-result", "Choose an active member.", "error"); return; }
+  if (!duration || duration < 1 || duration > 24 || !Number.isFinite(amount) || amount <= 0) {
+    showMessage("payment-result", "Enter a duration from 1 to 24 months and a positive payment amount.", "error"); return;
+  }
+  const expected = new Date(m.membership_expiry + "T00:00:00Z");
+  expected.setUTCDate(expected.getUTCDate() + 1);
+  const expectedStart = `${expected.getUTCFullYear()}-${String(expected.getUTCMonth()+1).padStart(2,"0")}-${String(expected.getUTCDate()).padStart(2,"0")}`;
+  if (start !== expectedStart) {
+    showMessage("payment-result", `Renewal must start on ${formatDate(expectedStart)}. Select the member again to fill the correct date.`, "error"); return;
+  }
+  if (!confirm(`Confirm payment?\nMember: ${m.full_name} (${m.member_code})\nDuration: ${duration} month(s)\nAmount received: ${money(amount)}\nPeriod: ${formatDate(start)} to ${formatDate(end)}\n\nThis will save a payment and update the member record.`)) return;
+  const payload = {
+    member_code: code,
+    plan_name: `${duration} month(s)`,
+    duration_months: duration,
+    amount: amount,
+    period_start: start,
+    period_end: end
+  };
+  try {
+    const result = await api("/payments", {method:"POST", body:JSON.stringify(payload)});
+    showMessage("payment-result", `Payment recorded successfully.\nPayment ID: ${result.id}\nAmount: ${money(result.amount)}\nPeriod: ${formatDate(result.period_start)} to ${formatDate(result.period_end)}\n\n${result.receipt_message}`, "ok");
+    await loadMembers();
+    await loadHistory();
+  } catch (err) {
+    showMessage("payment-result", "Payment was not confirmed by the server: " + err.message, "error");
+  }
+});
+
+async function loadHistory() {
+  try {
+    const code = $("history-member").value;
+    const records = code
+      ? await api(`/members/${encodeURIComponent(code)}/payments`)
+      : await api("/payments");
+
+    membersCache = await api("/members");
+    paymentsCache = records;
+    $("total-payments").textContent = records.length;
+
+    const tbody = $("payment-table");
+    tbody.innerHTML = "";
+
+    records.forEach(p => {
+      const member = membersCache.find(m => m.id === p.member_id);
+      const tr = document.createElement("tr");
+
+      [
+        p.id,
+        member ? member.member_code : p.member_id,
+        p.paid_at ? new Date(p.paid_at).toLocaleString() : "—",
+        money(p.amount),
+        formatDate(p.period_start),
+        formatDate(p.period_end)
+      ].forEach(value => {
+        const td = document.createElement("td");
+        td.textContent = value;
+        tr.appendChild(td);
+      });
+
+      const td = document.createElement("td");
+      const btn = document.createElement("button");
+      btn.className = "btn btn-light";
+      btn.textContent = "View receipt";
+      btn.addEventListener("click", () => {
+        $("receipt-view").innerHTML = "";
+        const box = document.createElement("div");
+        box.className = "panel";
+        const title = document.createElement("h2");
+        title.textContent = `Receipt — Payment ${p.id}`;
+        const pre = document.createElement("div");
+        pre.className = "result";
+        pre.textContent = p.receipt_message || "No receipt text saved.";
+        box.append(title, pre);
+        $("receipt-view").appendChild(box);
+      });
+
+      td.appendChild(btn);
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    });
+
+    $("history-empty").textContent = records.length
+      ? ""
+      : "No payment records found.";
+    $("history-empty").style.display = records.length ? "none" : "block";
+  } catch (err) {
+    showMessage("global-message", "Could not load payment history: " + err.message, "error");
+  }
+}
+
+$("refresh-history").addEventListener("click", loadHistory);
+$("history-member").addEventListener("change", loadHistory);
+
+checkApi();
+loadMembers();
+loadHistory();
+</script>
+</body>
+</html>
