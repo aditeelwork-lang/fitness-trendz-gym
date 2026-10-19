@@ -124,11 +124,75 @@ th { color: var(--navy); background: #F1F3EF; }
   padding: 4px;
   margin-bottom: 12px;
 }
+#auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
 
+.auth-card {
+  width: 100%;
+  max-width: 430px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 12px 35px rgba(36, 59, 83, .12);
+}
+
+.auth-card h1 {
+  margin-bottom: 8px;
+}
+
+.auth-card p {
+  color: var(--muted);
+}
+
+.auth-card .field {
+  margin: 18px 0;
+}
+
+#auth-message {
+  margin-top: 12px;
+}
+
+.layout {
+  display: none;
+}
+
+.layout.authenticated {
+  display: flex;
+}
+  #login-form button {
+  width: 100%;
+}
+
+#auth-message:empty {
+  display: none;
+}
 </style>
 </head>
 <body>
-<div class="layout">
+  <section id="auth-screen">
+  <div class="auth-card">
+    <h1>Fitness Trendz</h1>
+    <p>Sign in to manage gym members and payments.</p>
+    <form id="login-form">
+      <div class="field">
+        <label for="owner-password">Owner password</label>
+        <input id="owner-password" type="password"
+               autocomplete="current-password" required>
+      </div>
+      <button class="btn btn-turquoise" id="login-button" type="submit">
+        Sign in
+      </button>
+    </form>
+    <div id="auth-message" aria-live="polite"></div>
+  </div>
+</section>
+<div class="layout" id="app-layout">
   <aside class="sidebar">
 
 <div class="brand">
@@ -272,15 +336,30 @@ function clearMessage(target) { $(target).innerHTML = ""; }
 async function api(path, options = {}) {
   const response = await fetch(API + path, {
     ...options,
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) }
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
   });
+
   const text = await response.text();
   let data;
-  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-  if (!response.ok) {
-    const detail = data && data.detail;
-    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail || data || response.statusText));
+
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
   }
+
+  if (!response.ok) {
+    throw new Error(
+      data && data.detail
+        ? data.detail
+        : String(data || response.statusText)
+    );
+  }
+
   return data;
 }
 function formatDate(value) {
@@ -554,10 +633,71 @@ async function loadHistory() {
 
 $("refresh-history").addEventListener("click", loadHistory);
 $("history-member").addEventListener("change", loadHistory);
+function showLoginScreen() {
+  $("app-layout").classList.remove("authenticated");
+  $("auth-screen").style.display = "flex";
+}
+
+async function showAuthenticatedApp() {
+  $("auth-screen").style.display = "none";
+  $("app-layout").classList.add("authenticated");
+  clearMessage("auth-message");
+
+  await loadMembers();
+  await loadHistory();
+}
+
+async function refreshAuthStatus() {
+  try {
+    const status = await api("/auth/status");
+
+    if (status && status.authenticated) {
+      await showAuthenticatedApp();
+    } else {
+      showLoginScreen();
+    }
+  } catch (error) {
+    showLoginScreen();
+    showMessage(
+      "auth-message",
+      "Could not check login status: " + error.message,
+      "error"
+    );
+  }
+}
+
+$("login-form").addEventListener("submit", async event => {
+  event.preventDefault();
+
+  const button = $("login-button");
+  button.disabled = true;
+  button.textContent = "Signing in…";
+  clearMessage("auth-message");
+
+  try {
+    await api("/login", {
+      method: "POST",
+      body: JSON.stringify({
+        password: $("owner-password").value
+      })
+    });
+
+    $("owner-password").value = "";
+    await showAuthenticatedApp();
+  } catch (error) {
+    showMessage(
+      "auth-message",
+      "Login failed: " + error.message,
+      "error"
+    );
+  } finally {
+    button.disabled = false;
+    button.textContent = "Sign in";
+  }
+});
 
 checkApi();
-loadMembers();
-loadHistory();
+refreshAuthStatus();
 </script>
 </body>
 </html>
