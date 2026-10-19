@@ -172,6 +172,11 @@ th { color: var(--navy); background: #F1F3EF; }
 #auth-message:empty {
   display: none;
 }
+  @media (max-width: 600px) {
+  .layout.authenticated {
+    display: block;
+  }
+}
 </style>
 </head>
 <body>
@@ -249,8 +254,9 @@ th { color: var(--navy); background: #F1F3EF; }
   automatically in this demo. Payments are recorded when you
   submit the payment form.
 </div>
-
-    </section>
+</div>
+</div>
+</section>
 
     <section class="page" id="page-add-member">
       <div class="panel">
