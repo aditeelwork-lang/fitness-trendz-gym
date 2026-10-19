@@ -3,7 +3,10 @@ import hmac
 from calendar import monthrange
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-
+import json
+import re
+import urllib.error
+import urllib.request
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -447,6 +450,94 @@ def deactivate_member(
         raise
 
     return member
+    
+def normalize_indian_phone(phone: str) -> str:
+    """Convert a 10-digit Indian mobile number to country-code format."""
+    digits = re.sub(r"\D", "", str(phone or ""))
+
+    if len(digits) == 10:
+        return "91" + digits
+
+    if len(digits) == 12 and digits.startswith("91"):
+        return digits
+
+    raise ValueError("Phone number must be a valid 10-digit Indian number.")
+
+
+def send_whatsapp_template(member, reminder_type: str) -> tuple[bool, str]:
+    """Send the approved gym_membership_reminder template via Meta Cloud API."""
+    token = os.getenv("WHATSAPP_ACCESS_TOKEN")
+    phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
+    api_version = os.getenv("WHATSAPP_GRAPH_API_VERSION", "v25.0")
+    template_name = os.getenv(
+        "WHATSAPP_TEMPLATE_NAME", "gym_membership_reminder"
+    )
+    language_code = os.getenv("WHATSAPP_TEMPLATE_LANGUAGE", "en")
+
+    if not token or not phone_number_id:
+        return False, "Missing WhatsApp access token or phone number ID."
+
+    try:
+        recipient = normalize_indian_phone(member.phone)
+    except ValueError as exc:
+        return False, str(exc)
+
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": recipient,
+        "type": "template",
+        "template": {
+            "name": template_name,
+            "language": {"code": language_code},
+            "components": [
+                {
+                    "type": "body",
+                    "parameters": [
+                        {"type": "text", "text": str(member.full_name)},
+                        {
+                            "type": "text",
+                            "text": member.membership_expiry.strftime("%d %B %Y"),
+                        },
+                        {
+                            "type": "text",
+                            "text": f"{member.monthly_fee:.2f}",
+                        },
+                    ],
+                }
+            ],
+        },
+    }
+
+    request = urllib.request.Request(
+        f"https://graph.facebook.com/{api_version}/{phone_number_id}/messages",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            result = json.loads(response.read().decode("utf-8"))
+
+        messages = result.get("messages", [])
+        if messages and messages[0].get("id"):
+            return True, f"WhatsApp accepted message: {messages[0]['id']}"
+
+        return False, "API response did not include a message ID."
+
+    except urllib.error.HTTPError as exc:
+        try:
+            details = exc.read().decode("utf-8")[:1000]
+        except Exception:
+            details = "No error details available."
+        return False, f"WhatsApp API HTTP {exc.code}: {details}"
+
+    except Exception as exc:
+        return False, f"WhatsApp request failed: {type(exc).__name__}."
+
 # --------------------------------------------------
 # MEMBERSHIP EXPIRY REMINDER PREVIEW
 # --------------------------------------------------
@@ -570,73 +661,20 @@ def run_daily_reminder_check():
             f"{len(members)} eligible member(s) checked."
         )
 
+       
         for member in members:
             days_left = (member.membership_expiry - today).days
 
-            if days_left == 1:
-                reminder_type = "expiry_tomorrow"
-                message = (
-                    f"Hi {member.full_name},\n\n"
-                    "Just a friendly reminder 📆\n\n"
-                    f"Your gym membership ends tomorrow, "
-                    f"{member.membership_expiry:%d-%m-%Y}.\n\n"
-                    "We wanted to keep you updated before it expires. ✅\n\n"
-                    "If you have any questions or need help with renewal, "
-                    "feel free to reach out 😊\n\n"
-                    "Thank you!\n"
-                    "Fitness Trendz Gym 💪"
-                )
+            reminder_types = {
+                1: "expiry_tomorrow",
+                0: "expiry_today",
+                -1: "expired_1_day",
+                -2: "expired_2_days",
+            }
 
-            elif days_left == 0:
-                reminder_type = "expiry_today"
-                message = (
-                    f"Hi {member.full_name},\n\n"
-                    "Just a friendly reminder 📆\n\n"
-                    f"Your gym membership expires today, "
-                    f"{member.membership_expiry:%d-%m-%Y}.\n\n"
-                    "We wanted to keep you updated and help you continue "
-                    "your fitness journey. 💪\n\n"
-                    "If you have any questions or need help with renewal, "
-                    "feel free to reach out 😊\n\n"
-                    "If you've already renewed, please ignore this "
-                    "message. ✅\n\n"
-                    "Thank you!\n"
-                    "Fitness Trendz Gym 💪"
-                )
-
-            elif days_left == -1:
-                reminder_type = "expired_1_day"
-                message = (
-                    f"Hi {member.full_name},\n\n"
-                    "Just a friendly follow-up 📆\n\n"
-                    f"Your gym membership expired on "
-                    f"{member.membership_expiry:%d-%m-%Y}.\n\n"
-                    "If you have any questions or need help with renewal, "
-                    "feel free to reach out 😊\n\n"
-                    "If you've already renewed, please ignore this "
-                    "message. ✅\n\n"
-                    "Thank you!\n"
-                    "Fitness Trendz Gym 💪"
-                )
-
-            elif days_left == -2:
-                reminder_type = "expired_2_days"
-                message = (
-                    f"Hi {member.full_name},\n\n"
-                    "This is a final follow-up about your membership. 📆\n\n"
-                    f"Your membership expired on "
-                    f"{member.membership_expiry:%d-%m-%Y}.\n\n"
-                    "If you'd like help renewing, please contact "
-                    "Fitness Trendz Gym. 💪\n\n"
-                    "If you've already renewed, please ignore this "
-                    "message. ✅\n\n"
-                    "Thank you!\n"
-                    "Fitness Trendz Gym 💪"
-                )
-
-            else:
+            reminder_type = reminder_types.get(days_left)
+            if not reminder_type:
                 continue
-
 
             existing_log = (
                 db.query(ReminderLog)
@@ -650,49 +688,64 @@ def run_daily_reminder_check():
 
             if existing_log:
                 print(
-                    f"  SKIPPED {member.member_code}: "
-                    "reminder already logged for today."
+                    f"SKIPPED {member.member_code}: "
+                    f"{reminder_type} already logged today."
                 )
                 continue
 
-
-            existing_log = db.query(ReminderLog).filter_by(
-                member_id=member.id,
-                reminder_date=today,
-                reminder_type=reminder_type,
-            ).first()
-
-            if existing_log:
-                print(
-                    f"  SKIPPED DUPLICATE {member.member_code} | "
-                    f"{reminder_type} | {today}"
-                )
-                continue
-
-            preview_log = ReminderLog(
-                member_id=member.id,
-                reminder_date=today,
-                reminder_type=reminder_type,
-                status="preview",
-                message=message,
+            # Safe default: preview only until explicitly enabled in Render.
+            sending_enabled = (
+                os.getenv("WHATSAPP_SEND_ENABLED", "false").lower() == "true"
             )
 
-            db.add(preview_log)
+            if not sending_enabled:
+                log = ReminderLog(
+                    member_id=member.id,
+                    reminder_date=today,
+                    reminder_type=reminder_type,
+                    status="preview",
+                    message=(
+                        f"Preview only for {member.full_name}; "
+                        f"membership expiry: {member.membership_expiry:%d-%m-%Y}"
+                    ),
+                )
+                db.add(log)
+
+                try:
+                    db.commit()
+                    print(f"PREVIEW ONLY: {member.member_code} | {reminder_type}")
+                except Exception:
+                    db.rollback()
+                    print(f"Failed to save preview log for {member.member_code}")
+
+                continue
+
+            success, result_message = send_whatsapp_template(
+                member, reminder_type
+            )
+
+            log = ReminderLog(
+                member_id=member.id,
+                reminder_date=today,
+                reminder_type=reminder_type,
+                status="sent" if success else "failed",
+                message=result_message,
+                sent_at=(
+                    datetime.now(ZoneInfo("Asia/Kolkata"))
+                    if success else None
+                ),
+            )
+            db.add(log)
 
             try:
                 db.commit()
                 print(
-                    f"  PREVIEW LOGGED {member.member_code} | "
-                    f"Expiry: {member.membership_expiry} | "
-                    f"Days left: {days_left} | NOT SENT"
+                    f"{'SENT' if success else 'FAILED'} "
+                    f"{member.member_code} | {result_message}"
                 )
             except Exception:
                 db.rollback()
-                print(
-                    f"  LOG FAILED for {member.member_code}; "
-                    "no message was sent."
-                )
-
+                print(f"Failed to save reminder log for {member.member_code}")
 
 # --------------------------------------------------
 # DAILY SCHEDULER — PREVIEW ONLY
