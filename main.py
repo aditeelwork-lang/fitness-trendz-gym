@@ -676,15 +676,18 @@ def run_daily_reminder_check():
             if not reminder_type:
                 continue
 
-            existing_log = (
-                db.query(ReminderLog)
-                .filter(
-                    ReminderLog.member_id == member.id,
-                    ReminderLog.reminder_type == reminder_type,
-                    ReminderLog.reminder_date == today,
-                )
-                .first()
-            )
+            
+existing_log = (
+    db.query(ReminderLog)
+    .filter(
+        ReminderLog.member_id == member.id,
+        ReminderLog.reminder_type == reminder_type,
+        ReminderLog.reminder_date == today,
+        ReminderLog.status.in_(["sent", "failed"]),
+    )
+    .first()
+)
+
 
             if existing_log:
                 print(
