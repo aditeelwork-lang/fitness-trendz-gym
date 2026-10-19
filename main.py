@@ -640,6 +640,7 @@ def get_reminder_logs(db: Session = Depends(get_db)):
 
 
 
+
 def run_daily_reminder_check():
     today = datetime.now(ZoneInfo("Asia/Kolkata")).date()
 
@@ -656,12 +657,15 @@ def run_daily_reminder_check():
             .all()
         )
 
-        print(
-            f"\n[REMINDER PREVIEW] {today}: "
-            f"{len(members)} eligible member(s) checked."
+        sending_enabled = (
+            os.getenv("WHATSAPP_SEND_ENABLED", "false").lower() == "true"
         )
 
-       
+        print(
+            f"\n[REMINDER {'SEND' if sending_enabled else 'PREVIEW'}] "
+            f"{today}: {len(members)} eligible member(s) checked."
+        )
+
         for member in members:
             days_left = (member.membership_expiry - today).days
 
@@ -676,58 +680,7 @@ def run_daily_reminder_check():
             if not reminder_type:
                 continue
 
-            
-existing_log = (
-    db.query(ReminderLog)
-    .filter(
-        ReminderLog.member_id == member.id,
-        ReminderLog.reminder_type == reminder_type,
-        ReminderLog.reminder_date == today,
-        ReminderLog.status.in_(["sent", "failed"]),
-    )
-    .first()
-)
-
-
-            if existing_log:
-                print(
-                    f"SKIPPED {member.member_code}: "
-                    f"{reminder_type} already logged today."
-                )
-                continue
-
-            # Safe default: preview only until explicitly enabled in Render.
-            sending_enabled = (
-                os.getenv("WHATSAPP_SEND_ENABLED", "false").lower() == "true"
-            )
-
-            if not sending_enabled:
-                log = ReminderLog(
-                    member_id=member.id,
-                    reminder_date=today,
-                    reminder_type=reminder_type,
-                    status="preview",
-                    message=(
-                        f"Preview only for {member.full_name}; "
-                        f"membership expiry: {member.membership_expiry:%d-%m-%Y}"
-                    ),
-                )
-                db.add(log)
-
-                try:
-                    db.commit()
-                    print(f"PREVIEW ONLY: {member.member_code} | {reminder_type}")
-                except Exception:
-                    db.rollback()
-                    print(f"Failed to save preview log for {member.member_code}")
-
-                continue
-
-            success, result_message = send_whatsapp_template(
-                member, reminder_type
-            )
-
-            
+            # Skip only an actual previous send attempt, not a preview.
             existing_log = (
                 db.query(ReminderLog)
                 .filter(
@@ -739,8 +692,58 @@ existing_log = (
                 .first()
             )
 
-            db.add(log)
+            if existing_log:
+                print(
+                    f"SKIPPED {member.member_code}: "
+                    f"{reminder_type} already attempted today."
+                )
+                continue
 
+            if not sending_enabled:
+                log = ReminderLog(
+                    member_id=member.id,
+                    reminder_date=today,
+                    reminder_type=reminder_type,
+                    status="preview",
+                    message=(
+                        f"Preview only for {member.full_name}; "
+                        f"membership expiry: "
+                        f"{member.membership_expiry:%d-%m-%Y}"
+                    ),
+                )
+                db.add(log)
+
+                try:
+                    db.commit()
+                    print(
+                        f"PREVIEW ONLY: {member.member_code} | "
+                        f"{reminder_type}"
+                    )
+                except Exception:
+                    db.rollback()
+                    print(
+                        f"Failed to save preview log for "
+                        f"{member.member_code}"
+                    )
+
+                continue
+
+            success, result_message = send_whatsapp_template(
+                member, reminder_type
+            )
+
+            log = ReminderLog(
+                member_id=member.id,
+                reminder_date=today,
+                reminder_type=reminder_type,
+                status="sent" if success else "failed",
+                message=result_message,
+                sent_at=(
+                    datetime.now(ZoneInfo("Asia/Kolkata"))
+                    if success else None
+                ),
+            )
+            db.add(log)
             try:
                 db.commit()
                 print(
