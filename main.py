@@ -727,17 +727,18 @@ existing_log = (
                 member, reminder_type
             )
 
-            log = ReminderLog(
-                member_id=member.id,
-                reminder_date=today,
-                reminder_type=reminder_type,
-                status="sent" if success else "failed",
-                message=result_message,
-                sent_at=(
-                    datetime.now(ZoneInfo("Asia/Kolkata"))
-                    if success else None
-                ),
+            
+            existing_log = (
+                db.query(ReminderLog)
+                .filter(
+                    ReminderLog.member_id == member.id,
+                    ReminderLog.reminder_type == reminder_type,
+                    ReminderLog.reminder_date == today,
+                    ReminderLog.status.in_(["sent", "failed"]),
+                )
+                .first()
             )
+
             db.add(log)
 
             try:
