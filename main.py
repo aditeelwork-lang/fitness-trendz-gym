@@ -680,24 +680,44 @@ def run_daily_reminder_check():
             if not reminder_type:
                 continue
 
-            # Skip only an actual previous send attempt, not a preview.
+            # Skip only an actual previous
+            # Find any existing log for this member, reminder type, and date.
             existing_log = (
                 db.query(ReminderLog)
                 .filter(
                     ReminderLog.member_id == member.id,
                     ReminderLog.reminder_type == reminder_type,
                     ReminderLog.reminder_date == today,
-                    ReminderLog.status.in_(["sent", "failed"]),
                 )
                 .first()
             )
 
+
+          
             if existing_log:
-                print(
-                    f"SKIPPED {member.member_code}: "
-                    f"{reminder_type} already attempted today."
-                )
-                continue
+                if existing_log.status in ("sent", "failed"):
+                    print(
+                        f"SKIPPED {member.member_code}: "
+                        f"{reminder_type} already attempted today."
+                    )
+                    continue
+
+                if (
+                    existing_log.status == "preview"
+                    and not sending_enabled
+                ):
+                    print(
+                        f"SKIPPED PREVIEW {member.member_code}: "
+                        f"{reminder_type} already previewed today."
+                    )
+                    continue
+
+                if (
+                    existing_log.status == "preview"
+                    and sending_enabled
+                ):
+                    db.delete(existing_log)
+                    db.commit()
 
             if not sending_enabled:
                 log = ReminderLog(
@@ -712,6 +732,7 @@ def run_daily_reminder_check():
                     ),
                 )
                 db.add(log)
+
 
                 try:
                     db.commit()
