@@ -178,8 +178,14 @@ th { color: var(--navy); background: #F1F3EF; }
       <div class="panel">
         <h2>Getting started</h2>
         <p>Enter the member's details, select any duration from 1 to 24 months, and enter the actual amount received. The amount is not tied to a fixed package price.</p>
-        <div class="notice">WhatsApp messaging is not enabled in this dashboard. Payments are recorded only when you explicitly submit a payment form.</div>
-      </div>
+
+<div class="notice">
+  <strong>Demo mode:</strong> Membership reminders are prepared
+  automatically for review. WhatsApp messages are not sent
+  automatically in this demo. Payments are recorded when you
+  submit the payment form.
+</div>
+
     </section>
 
     <section class="page" id="page-add-member">
@@ -249,7 +255,7 @@ th { color: var(--navy); background: #F1F3EF; }
 </div>
 
 <script>
-const API = "http://127.0.0.1:8000";
+const API = "";
 const $ = id => document.getElementById(id);
 let membersCache = [];
 let paymentsCache = [];

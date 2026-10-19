@@ -24,3 +24,5 @@ preview_test.py
 send_gym_template_test.py
 test_member_preview.py
 test_whatsapp_integration.py
+create_tables.py
+manual_send_gym_template.py

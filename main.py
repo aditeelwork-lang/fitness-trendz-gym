@@ -1,10 +1,11 @@
 import os
+import hmac
 from calendar import monthrange
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from zoneinfo import ZoneInfo
@@ -12,19 +13,84 @@ from database import engine
 from models import Base, Member, Payment, ReminderLog
 from schemas import MemberCreate, MemberResponse
 from payment_schemas import PaymentCreate, PaymentResponse
+from pydantic import BaseModel
+from starlette.middleware.sessions import SessionMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from dotenv import load_dotenv
+from pathlib import Path
+
+load_dotenv()
 
 
-app = FastAPI(title="Fitness Trendz Gym Automation")
+app = FastAPI(title="Fitness Trendz Gym Automation", docs_url=None, redoc_url=None, openapi_url=None)
+BASE_DIR = Path(__file__).resolve().parent
+OWNER_PASSWORD = os.getenv("OWNER_PASSWORD")
+SESSION_SECRET = os.getenv("SESSION_SECRET")
+APP_ENV = os.getenv("APP_ENV", "development").lower()
+
+if not OWNER_PASSWORD or not SESSION_SECRET:
+    raise RuntimeError(
+        "Missing OWNER_PASSWORD or SESSION_SECRET. Set both as environment variables."
+    )
+
+# This guard is registered before SessionMiddleware below so request.session
+# is available when authorization is checked.
+@app.middleware("http")
+async def owner_login_required(request: Request, call_next):
+    path = request.url.path
+    public_paths = {"/", "/login", "/logout", "/auth/status", "/health"}
+    is_asset = path.startswith("/assets/")
+    if path not in public_paths and not is_asset:
+        if not request.session.get("owner_authenticated"):
+            return JSONResponse({"detail": "Please log in to continue."}, status_code=401)
+    return await call_next(request)
+
+from fastapi.responses import JSONResponse
+
+# Signed session cookie. HTTPS-only when APP_ENV=production.
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET,
+    session_cookie="ftg_owner_session",
+    max_age=8 * 60 * 60,
+    same_site="lax",
+    https_only=(APP_ENV == "production"),
+)
+
+app.mount(
+    "/assets",
+    StaticFiles(directory=BASE_DIR / "assets"),
+    name="assets",
+)
+
+# Same-origin frontend/backend deployment; local CORS origins remain for development.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://127.0.0.1:5500",
-        "http://localhost:5500",
-    ],
-    allow_credentials=False,
+    allow_origins=["http://127.0.0.1:5500", "http://localhost:5500"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class LoginPayload(BaseModel):
+    password: str
+
+@app.post("/login")
+def owner_login(payload: LoginPayload, request: Request):
+    if not hmac.compare_digest(payload.password, OWNER_PASSWORD):
+        raise HTTPException(status_code=401, detail="Incorrect password.")
+    request.session["owner_authenticated"] = True
+    return {"ok": True}
+
+@app.post("/logout")
+def owner_logout(request: Request):
+    request.session.clear()
+    return {"ok": True}
+
+@app.get("/auth/status")
+def auth_status(request: Request):
+    return {"authenticated": bool(request.session.get("owner_authenticated"))}
 
 
 # Creates missing tables. Does not modify existing table structures.
@@ -73,9 +139,7 @@ def calculate_expiry(start_date: date, duration_months: int) -> date:
 
 @app.get("/")
 def home():
-    return {
-        "message": "Fitness Trendz Gym Automation API is running!"
-    }
+    return FileResponse(BASE_DIR / "index.html")
 
 
 @app.get("/health")
@@ -590,6 +654,8 @@ def run_daily_reminder_check():
                     "reminder already logged for today."
                 )
                 continue
+
+
             existing_log = db.query(ReminderLog).filter_by(
                 member_id=member.id,
                 reminder_date=today,
